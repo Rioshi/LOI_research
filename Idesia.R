@@ -1,21 +1,32 @@
+library(googlesheets)
+library(dplyr)
 library(caret)
 library(ggplot2)
 library(alr3)
 #Lectura de datos#
-yul <- read.delim("clipboard",header = TRUE)
-str(yul)
+gs_auth()
+my_sheets <- gs_ls()
+gap <- gs_title("Experimentos")
+yul <- gap %>%
+  gs_read(ws = "Yuleysi")
+yul <- as.data.frame(yul)
+rm(my_sheets,gap)
+
 yul$TEMP <- as.factor(yul$TEMP)
 yul$Repete <- as.factor(yul$Repete)
-yul <- subset(yul,MO_WyB<15 & MO_LOI<25)
+yul <- subset(yul,MO_WyB<10)
 
 
 ######################################
 ####Modelamiento de datos totales#####
 ######################################
+md.1 <- lm(MO_WyB~MO_LOI,data=yul)
+boxCox(md.1, lambda = seq(0, 1, by = 0.1))
+
 
 set.seed(123) 
 train.control <- trainControl(method = "repeatedcv", number = 10, repeats = 100) #5% de las observaciones
-md.1 <- train(MO_WyB~log(MO_LOI),data=yul, method = "lm",
+md.1 <- train(MO_WyB~MO_LOI,data=yul, method = "lm",
               trControl = train.control)
 summary(md.1)
 print(md.1)
@@ -35,12 +46,19 @@ ggplot(yul,aes(x=MO_LOI,y=MO_WyB)) +
         legend.title=element_blank())
 
 boxCox(md.1, lambda = seq(0, 1, by = 0.1))
-
+car::influenceIndexPlot(md.1$finalModel)
 
 
 ######################################
 ####Modelamiento de datos TEMP = 300#####
 ######################################
+md.2 <- lm(MO_WyB~MO_LOI,data=yul, subset=(TEMP=="300"))
+summary(md.2)
+shapiro.test(residuals(md.2))
+car::ncvTest(md.2)
+car::influenceIndexPlot(md.2)
+
+
 set.seed(123) 
 train.control <- trainControl(method = "repeatedcv", number = 10, repeats = 100) #10% de las observaciones
 md.2 <- train(MO_WyB~MO_LOI,data=yul, subset=(TEMP=="300"),method = "lm",
