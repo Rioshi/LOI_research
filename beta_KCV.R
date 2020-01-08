@@ -1,34 +1,30 @@
-betaCV <- function(data,y,R,K){
-  data=as.matrix(data)
-  n=dim(data)[1]
-  p=dim(data)[2]
-  EVC=rep(0, R)
-  for (i in 1:R)
-  {
-    resid=matrix(0,1,K)
-    indices=sample(1:n,n,replace=F)
-    azar=data[indices,]
-    subm=floor(n/K)
-    for (j in 1:K)
-    {
-      unid=((j-1)*subm+1):(j*subm)
-      if (j == K)
-      {
-        unid=((j-1)*subm+1):n
-      }
-      datap=azar[unid,]
-      datae=azar[-unid,]
-      ye=datae[,y]
-      xe=datae[,-y]
-      modelo=betareg(ye~xe)
-      unos=rep(1,dim(datap)[1])
-      data1=cbind(unos,datap[,-y])
-      predict=predict(modelo,newdata=datap[,-y])
-      resid[j]=sum((predict-datap[,y])^2)
-    }
-    EVC[i]=sum(resid)/n
+library(caret)
+library(betareg)
+
+# data : data.frame containing data
+# form : Model description
+# K : Fold number
+# resp: the column name of response variable
+# R : Repetition number
+vc <- 1:100
+
+dd <- createFolds(y = df$MO_LOI,k = 10,list = FALSE)
+which(dd == 3)
+
+betaCV <- function(data,form,resp,K,R){
+  EVC <- matrix(0,R,K)
+  for (j in 1:R) {
+  folds <- createFolds(y = data[,resp],k = K,list = FALSE)
+  for (i in 1:K) {
+    indice <- which(folds == i)
+    md <- betareg(formula(form),data = data[-indice,],link = "logit")
+    pp <- predict(object = md,newdata=data[indice,])
+    EVC[j,i] <- mean((data[indice,resp] - pp)^2)
   }
-  EVCP=mean(EVC)   
-  return (list(EVC=EVC, EVCP=EVCP))
+  }
+  return(EVC)
 }
-betaCV(data=subset(df,TEMP=="300")[,c("MO_WyB","MO_LOI")],y = 1,R = 10,K = 10)
+
+betaCV(data=df,form="MO_WyB~MO_LOI",resp="MO_WyB",K=10,R=2)
+
+
