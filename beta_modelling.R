@@ -4,6 +4,7 @@
 library(betareg)
 library(nortest)
 library(lmtest)
+library(ggplot2)
 ##############################
 ###### Lectura DAtos##########
 ##############################

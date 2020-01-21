@@ -4,11 +4,11 @@ library(ggplot2)
 yul <- read.csv(file.choose(),header = TRUE,sep=";")
 str(yul)
 yul$TEMP <- as.factor(yul$TEMP)
-
+yul <- subset(df,TEMP=="700"& MO_WyB < 8)
 #Modelo Lineal con Cross Validation
 set.seed(123) 
-train.control <- trainControl(method = "repeatedcv", number = 46, repeats = 100) #5% de las observaciones
-md.1 <- train(MO_WyB~MO_LOI,data=yul, method = "lm",
+train.control <- trainControl(method = "repeatedcv", number = 10, repeats = 1000) #5% de las observaciones
+md.1 <- train(MO_WyB~MO_LOI+Ca,data=yul, method = "lm",
                trControl = train.control)
 summary(md.1)
 print(md.1)

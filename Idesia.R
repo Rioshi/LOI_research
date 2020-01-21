@@ -14,7 +14,7 @@ rm(my_sheets,gap)
 
 yul$TEMP <- as.factor(yul$TEMP)
 yul$Repete <- as.factor(yul$Repete)
-yul <- subset(yul,MO_WyB<10)
+yul <- subset(yul,MO_WyB < 8)
 
 
 ######################################
