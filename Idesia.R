@@ -2,18 +2,108 @@ library(dplyr)
 library(caret)
 library(ggplot2)
 library(alr3)
+library(betareg)
 #Lectura de datos#
 yul <- readRDS(file="D:/Documents/GitHub/LOI_research/loi.rds")
-yul$TEMP <- as.factor(yul$TEMP) ; yul$Repete <- as.factor(yul$Repete)
-
+yul$MO_WyB <- yul$MO_WyB/100
+yul$MO_LOI <- yul$MO_LOI/100
 
 
 ######################################
 ####Modelamiento de datos totales#####
 ######################################
-md.1 <- lm(MO_WyB~MO_LOI,data=yul)
-boxCox(md.1, lambda = seq(0, 1, by = 0.1))
 
+###
+### MODELO COMPLETO
+###
+md1 <- betareg(MO_WyB~MO_LOI+TEMP+Ca,data=yul,link = "logit")
+resid.md1 <- residuals(md1,type="pearson")
+eje.x <- as.numeric(names(resid.md1))
+df <- data.frame(x=eje.x,y=resid.md1)
+
+ggplot(data = df, aes(x,y)) +
+  geom_point() + geom_smooth(color = "firebrick") + geom_hline(yintercept = 0) +
+  geom_hline(yintercept=c(-2,2), linetype="dashed", color = "red") +
+  theme_bw()
+
+plot(x=yul$MO_LOI,y=yul$MO_WyB)
+
+#Evaluacion de Valores Influyentes
+indice <- which(abs(resid.md1) > 2)
+
+#Revisar los valores Influyentes
+yul[indice,]
+
+###
+### REMODALAMIENTO SIN INFLUYENTES
+###
+md2 <- update(md1, subset = -indice)
+summary(md2)
+
+#Comparar ambos modelos
+AIC(md1,md2)
+
+#Evaluacion grafica
+resid.md2 <- residuals(md2,type="pearson")
+eje.x <- as.numeric(names(resid.md2))
+df2 <- data.frame(x=eje.x,y=resid.md2)
+
+ggplot(data = df2, aes(x,y)) +
+  geom_point() + geom_smooth(color = "firebrick") + geom_hline(yintercept = 0) +
+  geom_hline(yintercept=c(-2,2), linetype="dashed", color = "red") +
+  theme_bw()
+
+### EL SEGUNDO MODELO TIENE MAYOR pseudo R2
+
+
+######################################
+####MODELAMIENTO DE DATOS HASTA 15%###
+######################################
+yul2 <- subset(yul,MO_WyB<0.15)
+
+md3 <- betareg(MO_WyB~MO_LOI+TEMP+Ca,data=yul,link = "logit")
+summary(md3)
+resid.md3 <- residuals(md3,type="pearson")
+eje.x <- as.numeric(names(resid.md3))
+df <- data.frame(x=eje.x,y=resid.md3)
+
+ggplot(data = df, aes(x,y)) +
+  geom_point() + geom_smooth(color = "firebrick") + geom_hline(yintercept = 0) +
+  geom_hline(yintercept=c(-2,2), linetype="dashed", color = "red") +
+  theme_bw()
+
+
+
+
+
+
+
+
+
+
+
+
+
+#Evaluacion de Influyentes
+indice2 <- which(abs(resid.md2) > 2)
+yul[indice2,]
+
+#Remodelar 2da
+indice3 <- c(as.numeric(indice),as.numeric(indice2))
+md3 <- update(md1, subset = -indice3)
+summary(md3)
+
+#Evaluacion grafica
+resid.md3 <- residuals(md3,type="pearson")
+eje.x <- as.numeric(names(resid.md3))
+df3 <- data.frame(x=eje.x,y=resid.md3)
+
+ggplot(data = df3, aes(x,y)) +
+  geom_point() + geom_smooth(color = "firebrick") + geom_hline(yintercept = 0) +
+  geom_hline(yintercept=c(-2,2), linetype="dashed", color = "red") +
+  theme_bw()
+
+AIC(md1,md2,md3)
 
 set.seed(123) 
 train.control <- trainControl(method = "repeatedcv", number = 10, repeats = 100) #5% de las observaciones
