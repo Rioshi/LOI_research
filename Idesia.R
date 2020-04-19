@@ -1,3 +1,7 @@
+######################################################
+#### LECTURA DE DATOS Y LIBRERIAS ####################
+######################################################
+
 library(dplyr)
 library(caret)
 library(ggplot2)
@@ -8,158 +12,97 @@ yul <- readRDS(file="D:/Documents/GitHub/LOI_research/loi.rds")
 yul$MO_WyB <- yul$MO_WyB/100
 yul$MO_LOI <- yul$MO_LOI/100
 
+#datos de Diferencia de valores de Wilcoxon
+yul.dife <- readRDS("D:/Documents/GitHub/LOI_research/dif.rds")
+
+####################################################
+#### RESULTADO DE LA PRUEBA DE WILCOXON ############
+####################################################
+ggplot(yul.dife,aes(x=T.,y=DIF,colour=CC)) +
+  geom_point() + geom_line() + theme_bw()
+  xlab("Temperatura (°C)") + ylab("Diferencia")
+
 
 ######################################
-####Modelamiento de datos totales#####
+#### MODELAMIENTO #####
 ######################################
+yul2 <- subset(yul,TEMP == "300" | TEMP == "400" | TEMP == "500")
+yul2 <- subset(yul2,MO_WyB < 0.15)  
 
 ###
 ### MODELO COMPLETO
 ###
-md1 <- betareg(MO_WyB~MO_LOI+TEMP+Ca,data=yul,link = "logit")
+md1 <- betareg(MO_WyB~MO_LOI+TEMP+Ca,data=yul2,link = "logit")
+summary(md1)
 resid.md1 <- residuals(md1,type="pearson")
 eje.x <- as.numeric(names(resid.md1))
 df <- data.frame(x=eje.x,y=resid.md1)
 
+#Evaluar residuos totales
 ggplot(data = df, aes(x,y)) +
   geom_point() + geom_smooth(color = "firebrick") + geom_hline(yintercept = 0) +
   geom_hline(yintercept=c(-2,2), linetype="dashed", color = "red") +
   theme_bw()
 
-plot(x=yul$MO_LOI,y=yul$MO_WyB)
+ggplot(data = yul2, aes(MO_LOI*100, residuals(md1,"pearson"))) +
+  geom_point() + geom_smooth(color = "firebrick") + geom_hline(yintercept = 0) +
+  theme_bw() + xlab("Materia Orgánica (%)") + ylab("Residuales") + 
+  ggtitle("Predictor Lineal")
+
+ggplot(data = yul2, aes(Ca, residuals(md1,"pearson"))) +
+  geom_point() + geom_smooth(color = "firebrick") + geom_hline(yintercept = 0) +
+  theme_bw() + xlab("CaCO3 (%)") + ylab("Residuales") + 
+  ggtitle("Predictor Lineal")
+
+### MODELO LINEALIZANDO LA RELACION
+md2 <- betareg(MO_WyB~log(MO_LOI)+TEMP+Ca,data=yul2,link = "logit")
+summary(md2)
+resid.md2 <- residuals(md2,type="pearson")
+eje.x <- as.numeric(names(resid.md2))
+df <- data.frame(x=eje.x,y=resid.md2)
+
+ggplot(data = df, aes(x,y)) +
+  geom_point() + geom_smooth(color = "firebrick") + geom_hline(yintercept = 0) +
+  geom_hline(yintercept=c(-2,2), linetype="dashed", color = "red") +
+  theme_bw()
+
+ggplot(data = yul2, aes(MO_LOI, residuals(md2,"pearson"))) +
+  geom_point() + geom_smooth(color = "firebrick") + geom_hline(yintercept = 0) +
+  theme_bw() + xlab("Materia Orgánica (%)") + ylab("Residuales") + 
+  ggtitle("Predictor Lineal")
+
+ggplot(data = yul2, aes(Ca, residuals(md2,"pearson"))) +
+  geom_point() + geom_smooth(color = "firebrick") + geom_hline(yintercept = 0) +
+  theme_bw() + xlab("CaCO3 (%)") + ylab("Residuales") + 
+  ggtitle("Predictor Lineal")
+
 
 #Evaluacion de Valores Influyentes
-indice <- which(abs(resid.md1) > 2)
+indice <- which(abs(resid.md2) > 2)
 
 #Revisar los valores Influyentes
-yul[indice,]
+yul2[indice,]
 
 ###
 ### REMODALAMIENTO SIN INFLUYENTES
 ###
-md2 <- update(md1, subset = -indice)
-summary(md2)
+md3 <- update(md2, subset = -indice)
+summary(md3)
 
 #Comparar ambos modelos
-AIC(md1,md2)
+AIC(md1,md2,md3) #Nos quedamos con el modelo 2
 
-#Evaluacion grafica
-resid.md2 <- residuals(md2,type="pearson")
-eje.x <- as.numeric(names(resid.md2))
-df2 <- data.frame(x=eje.x,y=resid.md2)
+#Obtener las métricas por cross validation
 
-ggplot(data = df2, aes(x,y)) +
-  geom_point() + geom_smooth(color = "firebrick") + geom_hline(yintercept = 0) +
-  geom_hline(yintercept=c(-2,2), linetype="dashed", color = "red") +
-  theme_bw()
-
-### EL SEGUNDO MODELO TIENE MAYOR pseudo R2
-
-
-######################################
-####MODELAMIENTO DE DATOS HASTA 15%###
-######################################
-yul2 <- subset(yul,MO_WyB<0.15)
-
-md3 <- betareg(MO_WyB~MO_LOI+TEMP+Ca,data=yul,link = "logit")
-summary(md3)
-resid.md3 <- residuals(md3,type="pearson")
-eje.x <- as.numeric(names(resid.md3))
-df <- data.frame(x=eje.x,y=resid.md3)
-
-ggplot(data = df, aes(x,y)) +
-  geom_point() + geom_smooth(color = "firebrick") + geom_hline(yintercept = 0) +
-  geom_hline(yintercept=c(-2,2), linetype="dashed", color = "red") +
-  theme_bw()
+set.seed(666)
+breg.cv(data = yul2,fm.es = MO_WyB~MO_LOI+TEMP+Ca,respuesta = 4,k = 10,t = 1000)
+set.seed(555)
+breg.cv(data = yul2,fm.es = MO_WyB~log(MO_LOI)+TEMP+Ca,respuesta = 4,k = 10,t = 1000)
 
 
 
 
 
-
-
-
-
-
-
-
-
-#Evaluacion de Influyentes
-indice2 <- which(abs(resid.md2) > 2)
-yul[indice2,]
-
-#Remodelar 2da
-indice3 <- c(as.numeric(indice),as.numeric(indice2))
-md3 <- update(md1, subset = -indice3)
-summary(md3)
-
-#Evaluacion grafica
-resid.md3 <- residuals(md3,type="pearson")
-eje.x <- as.numeric(names(resid.md3))
-df3 <- data.frame(x=eje.x,y=resid.md3)
-
-ggplot(data = df3, aes(x,y)) +
-  geom_point() + geom_smooth(color = "firebrick") + geom_hline(yintercept = 0) +
-  geom_hline(yintercept=c(-2,2), linetype="dashed", color = "red") +
-  theme_bw()
-
-AIC(md1,md2,md3)
-
-set.seed(123) 
-train.control <- trainControl(method = "repeatedcv", number = 10, repeats = 100) #5% de las observaciones
-md.1 <- train(MO_WyB~MO_LOI,data=yul, method = "lm",
-              trControl = train.control)
-summary(md.1)
-print(md.1)
-
-plot(md.1$finalModel)
-shapiro.test(residuals(md.1$finalModel))
-car::ncvTest(md.1$finalModel)
-
-ggplot(yul,aes(x=MO_LOI,y=MO_WyB)) +
-  geom_point(shape=1)+
-  geom_smooth(method=lm,se = TRUE, aes(group=1),color="black",size=0.5) +
-  xlab("Loss on Ignition (%)") + ylab("Walkley & Black (%)") +
-  theme_minimal() +
-  theme(axis.text=element_text(size=11),
-        axis.title.x = element_text(face="bold"),
-        axis.title.y = element_text(face="bold"),
-        legend.title=element_blank())
-
-boxCox(md.1, lambda = seq(0, 1, by = 0.1))
-car::influenceIndexPlot(md.1$finalModel)
-
-
-######################################
-####Modelamiento de datos TEMP = 300#####
-######################################
-md.2 <- lm(MO_WyB~MO_LOI,data=yul, subset=(TEMP=="300"))
-summary(md.2)
-shapiro.test(residuals(md.2))
-car::ncvTest(md.2)
-car::influenceIndexPlot(md.2)
-
-
-set.seed(123) 
-train.control <- trainControl(method = "repeatedcv", number = 10, repeats = 100) #10% de las observaciones
-md.2 <- train(MO_WyB~MO_LOI,data=yul, subset=(TEMP=="300"),method = "lm",
-              trControl = train.control)
-summary(md.2)
-print(md.2)
-
-plot(md.2$finalModel)
-shapiro.test(residuals(md.2$finalModel))
-car::ncvTest(md.2$finalModel)
-
-ggplot(yul,aes(x=MO_LOI,y=MO_WyB)) +
-  geom_point(shape=1)+
-  geom_smooth(method=lm,se = TRUE, aes(group=1),color="black",size=0.5) +
-  xlab("Loss on Ignition (%)") + ylab("Walkley & Black (%)") +
-  theme_minimal() +
-  theme(axis.text=element_text(size=11),
-        axis.title.x = element_text(face="bold"),
-        axis.title.y = element_text(face="bold"),
-        legend.title=element_blank())
 
 
 
